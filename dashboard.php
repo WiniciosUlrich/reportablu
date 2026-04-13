@@ -49,8 +49,11 @@ if (!isAdmin()) {
 }
 
 if ($search !== '') {
-    $where[] = '(t.titulo LIKE :search OR t.descricao LIKE :search OR t.localizacao LIKE :search)';
-    $params['search'] = '%' . $search . '%';
+    $where[] = '(t.titulo LIKE :search_title OR t.descricao LIKE :search_description OR t.localizacao LIKE :search_location)';
+    $searchValue = '%' . $search . '%';
+    $params['search_title'] = $searchValue;
+    $params['search_description'] = $searchValue;
+    $params['search_location'] = $searchValue;
 }
 
 if ($statusFilter !== '') {
