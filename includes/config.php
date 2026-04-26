@@ -5,6 +5,21 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+spl_autoload_register(static function (string $className): void {
+    $prefix = 'ReportaBlu\\';
+
+    if (strncmp($className, $prefix, strlen($prefix)) !== 0) {
+        return;
+    }
+
+    $relativeClass = substr($className, strlen($prefix));
+    $filePath = __DIR__ . '/src/' . str_replace('\\', '/', $relativeClass) . '.php';
+
+    if (is_file($filePath)) {
+        require_once $filePath;
+    }
+});
+
 function loadEnv(string $filePath): void
 {
     if (!is_file($filePath)) {

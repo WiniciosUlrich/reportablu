@@ -3,55 +3,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/layout.php';
 
-$pdo = db();
+$ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 
 $search = trim((string) ($_GET['q'] ?? ''));
 $categoryFilter = (int) ($_GET['categoria'] ?? 0);
 
-$categoryStmt = $pdo->query('SELECT id, nome FROM categories ORDER BY nome');
-$categories = $categoryStmt->fetchAll();
-
-$statsStmt = $pdo->query(
-    "SELECT
-        COUNT(*) AS total,
-        SUM(CASE WHEN status = 'aberto' THEN 1 ELSE 0 END) AS abertos,
-        SUM(CASE WHEN status = 'em_andamento' THEN 1 ELSE 0 END) AS em_andamento,
-        SUM(CASE WHEN status = 'solucionado' THEN 1 ELSE 0 END) AS solucionados
-     FROM tickets"
-);
-$stats = $statsStmt->fetch() ?: [];
-
-$sql = "SELECT
-            t.id,
-            t.titulo,
-            t.descricao,
-            t.localizacao,
-            t.resolved_at,
-            c.nome AS categoria
-        FROM tickets t
-        INNER JOIN categories c ON c.id = t.category_id
-        WHERE t.status = 'solucionado'";
-
-$params = [];
-
-if ($search !== '') {
-    $sql .= ' AND (t.titulo LIKE :search_title OR t.descricao LIKE :search_description OR t.localizacao LIKE :search_location)';
-    $searchValue = '%' . $search . '%';
-    $params['search_title'] = $searchValue;
-    $params['search_description'] = $searchValue;
-    $params['search_location'] = $searchValue;
-}
-
-if ($categoryFilter > 0) {
-    $sql .= ' AND t.category_id = :category';
-    $params['category'] = $categoryFilter;
-}
-
-$sql .= ' ORDER BY t.resolved_at DESC, t.updated_at DESC LIMIT 12';
-
-$solvedStmt = $pdo->prepare($sql);
-$solvedStmt->execute($params);
-$solvedTickets = $solvedStmt->fetchAll();
+$homeData = $ticketFacade->homeData($_GET);
+$categories = $homeData['categories'] ?? [];
+$stats = $homeData['stats'] ?? [];
+$solvedTickets = $homeData['solved_tickets'] ?? [];
 
 renderHeader('Portal da cidade');
 ?>
@@ -137,6 +97,7 @@ renderHeader('Portal da cidade');
                 <p><?= h((string) $ticket['descricao']) ?></p>
 
                 <ul class="meta-list">
+                    <li><strong>Protocolo:</strong> <?= h((string) ($ticket['protocol_code'] ?? '-')) ?></li>
                     <li><strong>Categoria:</strong> <?= h((string) $ticket['categoria']) ?></li>
                     <li><strong>Local:</strong> <?= h((string) $ticket['localizacao']) ?></li>
                 </ul>

@@ -58,6 +58,41 @@ CREATE TABLE IF NOT EXISTS ticket_status_history (
     INDEX idx_ticket_status_history_created (created_at)
 ) ENGINE=InnoDB;
 
+CREATE TABLE IF NOT EXISTS ticket_protocols (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT UNSIGNED NOT NULL,
+    protocol_code VARCHAR(40) NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ticket_protocols_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    UNIQUE KEY uq_ticket_protocols_ticket (ticket_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS ticket_assignments (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT UNSIGNED NOT NULL,
+    department VARCHAR(80) NOT NULL,
+    note VARCHAR(255) NULL,
+    assigned_by_user_id INT UNSIGNED NOT NULL,
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ticket_assignments_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ticket_assignments_user FOREIGN KEY (assigned_by_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+    INDEX idx_ticket_assignments_ticket (ticket_id),
+    INDEX idx_ticket_assignments_department (department)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS ticket_responses (
+    id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    ticket_id INT UNSIGNED NOT NULL,
+    author_user_id INT UNSIGNED NOT NULL,
+    author_name VARCHAR(120) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ticket_responses_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
+    CONSTRAINT fk_ticket_responses_user FOREIGN KEY (author_user_id) REFERENCES users(id) ON DELETE RESTRICT,
+    INDEX idx_ticket_responses_ticket (ticket_id),
+    INDEX idx_ticket_responses_created (created_at)
+) ENGINE=InnoDB;
+
 INSERT INTO categories (nome)
 VALUES
     ('Iluminacao publica'),
@@ -137,3 +172,12 @@ SELECT
 FROM tickets t
 LEFT JOIN ticket_status_history h ON h.ticket_id = t.id
 WHERE h.id IS NULL;
+
+INSERT INTO ticket_protocols (ticket_id, protocol_code, created_at)
+SELECT
+    t.id,
+    CONCAT('RB-', DATE_FORMAT(t.created_at, '%Y%m%d'), '-', LPAD(t.id, 6, '0')),
+    t.created_at
+FROM tickets t
+LEFT JOIN ticket_protocols tp ON tp.ticket_id = t.id
+WHERE tp.id IS NULL;

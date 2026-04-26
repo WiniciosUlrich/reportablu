@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireGuest();
 
-$pdo = db();
+$authService = \ReportaBlu\Application\AppFactory::authService(db());
 $errors = [];
 $name = '';
 $email = '';
@@ -16,43 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string) ($_POST['senha'] ?? '');
     $confirmPassword = (string) ($_POST['confirmacao_senha'] ?? '');
 
-    if ($name === '') {
-        $errors[] = 'Informe seu nome.';
-    }
-
-    if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-        $errors[] = 'Informe um email valido.';
-    }
-
-    if (strlen($password) < 6) {
-        $errors[] = 'A senha deve ter ao menos 6 caracteres.';
-    }
-
-    if ($password !== $confirmPassword) {
-        $errors[] = 'A confirmacao de senha nao confere.';
-    }
-
-    if (count($errors) === 0) {
-        $existsStmt = $pdo->prepare('SELECT id FROM users WHERE email = :email LIMIT 1');
-        $existsStmt->execute(['email' => $email]);
-
-        if ($existsStmt->fetch()) {
-            $errors[] = 'Este email ja esta cadastrado.';
-        } else {
-            $insertStmt = $pdo->prepare(
-                'INSERT INTO users (nome, email, password_hash, role) VALUES (:nome, :email, :password_hash, :role)'
-            );
-
-            $insertStmt->execute([
-                'nome' => $name,
-                'email' => $email,
-                'password_hash' => password_hash($password, PASSWORD_DEFAULT),
-                'role' => 'morador',
-            ]);
-
-            setFlash('success', 'Conta criada com sucesso. Entre para abrir seu primeiro chamado.');
-            redirect('login.php');
-        }
+    try {
+        $authService->register($name, $email, $password, $confirmPassword);
+        setFlash('success', 'Conta criada com sucesso. Entre para abrir seu primeiro chamado.');
+        redirect('login.php');
+    } catch (\ReportaBlu\Application\Exceptions\ValidationException $exception) {
+        $errors = $exception->errors();
+    } catch (Throwable $exception) {
+        $errors[] = 'Nao foi possivel criar a conta agora. Tente novamente.';
     }
 }
 

@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireGuest();
 
-$pdo = db();
+$authService = \ReportaBlu\Application\AppFactory::authService(db());
 $errors = [];
 $email = '';
 
@@ -13,32 +13,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim((string) ($_POST['email'] ?? ''));
     $password = (string) ($_POST['senha'] ?? '');
 
-    if ($email === '' || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-        $errors[] = 'Informe um email valido.';
-    }
-
-    if ($password === '') {
-        $errors[] = 'Informe sua senha.';
-    }
-
-    if (count($errors) === 0) {
-        $stmt = $pdo->prepare('SELECT id, nome, email, password_hash, role FROM users WHERE email = :email LIMIT 1');
-        $stmt->execute(['email' => $email]);
-        $user = $stmt->fetch();
-
-        if (!$user || !password_verify($password, (string) $user['password_hash'])) {
-            $errors[] = 'Email ou senha invalidos.';
-        } else {
-            $_SESSION['user'] = [
-                'id' => (int) $user['id'],
-                'name' => (string) $user['nome'],
-                'email' => (string) $user['email'],
-                'role' => (string) $user['role'],
-            ];
-
-            setFlash('success', 'Bem-vindo, ' . (string) $user['nome'] . '.');
-            redirect('dashboard.php');
-        }
+    try {
+        $_SESSION['user'] = $authService->authenticate($email, $password);
+        setFlash('success', 'Bem-vindo, ' . (string) $_SESSION['user']['name'] . '.');
+        redirect('dashboard.php');
+    } catch (\ReportaBlu\Application\Exceptions\ValidationException $exception) {
+        $errors = $exception->errors();
+    } catch (Throwable $exception) {
+        $errors[] = 'Nao foi possivel realizar o login agora. Tente novamente.';
     }
 }
 

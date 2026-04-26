@@ -1,0 +1,81 @@
+Registrar chamado
+
+Como morador, quero registrar um chamado sobre um problema urbano, para que a prefeitura possa tomar providências.
+
+Confirmação:
+- Criar chamado com descrição, categoria e localização.
+- Verificar se o chamado foi registrado no sistema.
+Informar localização
+
+Como morador, quero informar a localização do problema, para facilitar a identificação pela prefeitura.
+
+Confirmação:
+- Criar chamado informando endereço ou localização no mapa.
+- Verificar se a localização aparece no chamado registrado.
+Selecionar categoria do Chamado
+
+Como morador, quero selecionar a categoria do chamado(iluminação, trânsito, infraestrutura, etc.), para direcionar corretamente o atendimento.
+
+Confirmação:
+- Criar chamados com categorias diferentes.
+- Verificar se a categoria aparece corretamente registrada.
+
+Anexar arquivos
+
+Como morador, quero anexar arquivos ao chamado, para comprovar o problema reportado.
+
+Confirmação:
+- Criar chamado com foto anexada.
+- Verificar se a imagem aparece no chamado.
+
+Gerar protocolo do chamado
+
+Como morador, quero receber um número de protocolo após abrir um chamado, para acompanhar minha solicitação.
+
+Confirmação:
+- Abrir chamado.
+- Verificar se o sistema gera um número de protocolo.
+
+Atendente visualizar chamados categorizados
+
+Como atendente, quero visualizar os chamados categorizados por tema, para agilizar o atendimento.
+
+Confirmação:
+- Criar chamados em diferentes categorias.
+- Verificar se aparecem organizados no painel do atendente.
+
+Encaminhar chamado para setor responsável
+
+Como atendente, quero encaminhar um chamado para o setor responsável, para que o problema seja tratado corretamente.
+
+Confirmação:
+- Criar chamado.
+- Encaminhar para setor responsável.
+- Verificar se o setor foi registrado no chamado.
+
+Acompanhar status do chamado
+
+Como morador, quero acompanhar o status do meu chamado, para saber se ele está sendo analisado ou resolvido.
+
+Confirmação:
+- Alterar status do chamado.
+
+- Verificar se o cidadão consegue visualizar a atualização.
+
+
+Visualizar detalhes do chamado
+
+Como morador, quero visualizar os detalhes do meu chamado, para acompanhar as informações registradas.
+
+Confirmação:
+- Abrir chamado.
+- Acessar tela de detalhes e verificar descrição, categoria, fotos e status.
+
+Responder chamado do cidadão
+
+Como atendente, quero responder ao cidadão diretamente pelo sistema, para informar previsão de solução ou orientações adicionais.
+
+Confirmação:
+- Criar chamado.
+- Adicionar resposta como atendente.
+- Verificar se o cidadão consegue visualizar a resposta.

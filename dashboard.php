@@ -5,87 +5,18 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireLogin();
 
-$pdo = db();
+$ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 
-$search = trim((string) ($_GET['q'] ?? ''));
-$statusFilter = trim((string) ($_GET['status'] ?? ''));
-$categoryFilter = (int) ($_GET['categoria'] ?? 0);
+$dashboardData = $ticketFacade->dashboardData($_GET, currentUserId(), isAdmin());
+$categories = $dashboardData['categories'] ?? [];
+$stats = $dashboardData['stats'] ?? [];
+$tickets = $dashboardData['tickets'] ?? [];
+$validStatuses = $dashboardData['valid_statuses'] ?? [];
+$activeFilters = $dashboardData['active_filters'] ?? [];
 
-$validStatuses = ['aberto', 'em_andamento', 'solucionado', 'fechado'];
-if (!in_array($statusFilter, $validStatuses, true)) {
-    $statusFilter = '';
-}
-
-$categoryStmt = $pdo->query('SELECT id, nome FROM categories ORDER BY nome');
-$categories = $categoryStmt->fetchAll();
-
-$statsSql = "SELECT
-                COUNT(*) AS total,
-                SUM(CASE WHEN status = 'aberto' THEN 1 ELSE 0 END) AS abertos,
-                SUM(CASE WHEN status = 'em_andamento' THEN 1 ELSE 0 END) AS em_andamento,
-                SUM(CASE WHEN status = 'solucionado' THEN 1 ELSE 0 END) AS solucionados,
-                SUM(CASE WHEN status = 'fechado' THEN 1 ELSE 0 END) AS fechados
-            FROM tickets";
-
-if (!isAdmin()) {
-    $statsSql .= ' WHERE user_id = :user_id';
-}
-
-$statsStmt = $pdo->prepare($statsSql);
-if (isAdmin()) {
-    $statsStmt->execute();
-} else {
-    $statsStmt->execute(['user_id' => currentUserId()]);
-}
-
-$stats = $statsStmt->fetch() ?: [];
-
-$where = [];
-$params = [];
-
-if (!isAdmin()) {
-    $where[] = 't.user_id = :user_id';
-    $params['user_id'] = currentUserId();
-}
-
-if ($search !== '') {
-    $where[] = '(t.titulo LIKE :search_title OR t.descricao LIKE :search_description OR t.localizacao LIKE :search_location)';
-    $searchValue = '%' . $search . '%';
-    $params['search_title'] = $searchValue;
-    $params['search_description'] = $searchValue;
-    $params['search_location'] = $searchValue;
-}
-
-if ($statusFilter !== '') {
-    $where[] = 't.status = :status';
-    $params['status'] = $statusFilter;
-}
-
-if ($categoryFilter > 0) {
-    $where[] = 't.category_id = :category_id';
-    $params['category_id'] = $categoryFilter;
-}
-
-$whereSql = count($where) > 0 ? implode(' AND ', $where) : '1 = 1';
-
-$listSql = "SELECT
-                t.id,
-                t.titulo,
-                t.status,
-                t.localizacao,
-                t.created_at,
-                t.updated_at,
-                c.nome AS categoria,
-                u.nome AS solicitante
-            FROM tickets t
-            INNER JOIN categories c ON c.id = t.category_id
-            INNER JOIN users u ON u.id = t.user_id
-            WHERE " . $whereSql . "
-            ORDER BY t.created_at DESC";
-
-$listStmt = $pdo->prepare($listSql);
-$listStmt->execute($params);
-$tickets = $listStmt->fetchAll();
+$search = (string) ($activeFilters['search'] ?? '');
+$statusFilter = (string) ($activeFilters['status'] ?? '');
+$categoryFilter = (int) ($activeFilters['category_id'] ?? 0);
 
 renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
 ?>
@@ -151,6 +82,7 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
             <thead>
                 <tr>
                     <th>#</th>
+                    <th>Protocolo</th>
                     <th>Titulo</th>
                     <th>Categoria</th>
                     <th>Localizacao</th>
@@ -166,13 +98,14 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
             <tbody>
                 <?php if (count($tickets) === 0): ?>
                     <tr>
-                        <td colspan="<?= isAdmin() ? '9' : '8' ?>" class="empty-state">Nenhum chamado encontrado.</td>
+                        <td colspan="<?= isAdmin() ? '10' : '9' ?>" class="empty-state">Nenhum chamado encontrado.</td>
                     </tr>
                 <?php endif; ?>
 
                 <?php foreach ($tickets as $ticket): ?>
                     <tr>
                         <td><?= (int) $ticket['id'] ?></td>
+                        <td><?= h((string) ($ticket['protocol_code'] ?? '-')) ?></td>
                         <td><?= h((string) $ticket['titulo']) ?></td>
                         <td><?= h((string) $ticket['categoria']) ?></td>
                         <td><?= h((string) $ticket['localizacao']) ?></td>

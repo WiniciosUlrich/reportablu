@@ -65,24 +65,15 @@ function formatBytes(int $bytes): string
 
 function statusLabel(string $status): string
 {
-    $labels = [
-        'aberto' => 'Aberto',
-        'em_andamento' => 'Em andamento',
-        'solucionado' => 'Solucionado',
-        'fechado' => 'Fechado',
-    ];
-
-    return $labels[$status] ?? 'Indefinido';
+    return \ReportaBlu\Domain\TicketStatus::label($status);
 }
 
 function statusClass(string $status): string
 {
-    $classMap = [
-        'aberto' => 'status-aberto',
-        'em_andamento' => 'status-em-andamento',
-        'solucionado' => 'status-solucionado',
-        'fechado' => 'status-fechado',
-    ];
+    return \ReportaBlu\Domain\TicketStatus::cssClass($status);
+}
 
-    return $classMap[$status] ?? 'status-aberto';
+function departmentLabel(string $department): string
+{
+    return \ReportaBlu\Domain\DepartmentCatalog::label($department);
 }

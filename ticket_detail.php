@@ -5,7 +5,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireLogin();
 
-$pdo = db();
+$ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 $ticketId = (int) ($_GET['id'] ?? 0);
 
 if ($ticketId <= 0) {
@@ -13,110 +13,67 @@ if ($ticketId <= 0) {
     redirect('dashboard.php');
 }
 
-$validStatuses = ['aberto', 'em_andamento', 'solucionado', 'fechado'];
+$validStatuses = $ticketFacade->validStatuses();
+$departments = $ticketFacade->departments();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAdmin()) {
-    $newStatus = trim((string) ($_POST['status'] ?? ''));
-    $note = trim((string) ($_POST['nota'] ?? ''));
+    $action = trim((string) ($_POST['action'] ?? 'update_status'));
 
-    if (!in_array($newStatus, $validStatuses, true)) {
-        setFlash('error', 'Status invalido.');
-        redirect('ticket_detail.php?id=' . $ticketId);
+    try {
+        if ($action === 'update_status') {
+            $ticketFacade->updateStatus(
+                $ticketId,
+                (string) ($_POST['status'] ?? ''),
+                (string) ($_POST['nota'] ?? ''),
+                isAdmin()
+            );
+
+            setFlash('success', 'Status do chamado atualizado.');
+        } elseif ($action === 'assign_department') {
+            $ticketFacade->assignDepartment(
+                $ticketId,
+                (string) ($_POST['setor'] ?? ''),
+                (string) ($_POST['nota_setor'] ?? ''),
+                (int) currentUserId(),
+                isAdmin()
+            );
+
+            setFlash('success', 'Chamado encaminhado para o setor responsavel.');
+        } elseif ($action === 'add_response') {
+            $ticketFacade->addResponse(
+                $ticketId,
+                (int) currentUserId(),
+                currentUserName(),
+                (string) ($_POST['resposta'] ?? ''),
+                isAdmin()
+            );
+
+            setFlash('success', 'Resposta adicionada ao chamado.');
+        } else {
+            throw new \ReportaBlu\Application\Exceptions\ValidationException(['Acao invalida.']);
+        }
+    } catch (\ReportaBlu\Application\Exceptions\ValidationException $exception) {
+        setFlash('error', $exception->errors()[0] ?? 'Dados invalidos.');
+    } catch (\ReportaBlu\Application\Exceptions\AuthorizationException | \ReportaBlu\Application\Exceptions\NotFoundException $exception) {
+        setFlash('error', $exception->getMessage());
+    } catch (Throwable $exception) {
+        setFlash('error', 'Nao foi possivel concluir a operacao.');
     }
 
-    $currentStmt = $pdo->prepare('SELECT status, resolved_at FROM tickets WHERE id = :id LIMIT 1');
-    $currentStmt->execute(['id' => $ticketId]);
-    $currentTicket = $currentStmt->fetch();
-
-    if ($currentTicket) {
-        $resolvedAt = $currentTicket['resolved_at'];
-
-        if ($newStatus === 'solucionado' && ($resolvedAt === null || $resolvedAt === '')) {
-            $resolvedAt = date('Y-m-d H:i:s');
-        }
-
-        if ($newStatus === 'aberto' || $newStatus === 'em_andamento') {
-            $resolvedAt = null;
-        }
-
-        $updateStmt = $pdo->prepare(
-            'UPDATE tickets
-             SET status = :status, resolved_at = :resolved_at, updated_at = NOW()
-             WHERE id = :id'
-        );
-
-        $updateStmt->execute([
-            'status' => $newStatus,
-            'resolved_at' => $resolvedAt,
-            'id' => $ticketId,
-        ]);
-
-        $historyStmt = $pdo->prepare(
-            'INSERT INTO ticket_status_history (ticket_id, status, note, created_at)
-             VALUES (:ticket_id, :status, :note, NOW())'
-        );
-
-        $historyStmt->execute([
-            'ticket_id' => $ticketId,
-            'status' => $newStatus,
-            'note' => $note !== '' ? $note : 'Atualizacao de status pelo administrador.',
-        ]);
-
-        setFlash('success', 'Status do chamado atualizado.');
-        redirect('ticket_detail.php?id=' . $ticketId);
-    }
+    redirect('ticket_detail.php?id=' . $ticketId);
 }
 
-$params = ['id' => $ticketId];
-$ticketSql = "SELECT
-                t.id,
-                t.user_id,
-                t.titulo,
-                t.descricao,
-                t.localizacao,
-                t.status,
-                t.created_at,
-                t.updated_at,
-                t.resolved_at,
-                c.nome AS categoria,
-                u.nome AS solicitante,
-                u.email AS solicitante_email
-            FROM tickets t
-            INNER JOIN categories c ON c.id = t.category_id
-            INNER JOIN users u ON u.id = t.user_id
-            WHERE t.id = :id";
-
-if (!isAdmin()) {
-    $ticketSql .= ' AND t.user_id = :user_id';
-    $params['user_id'] = currentUserId();
-}
-
-$ticketStmt = $pdo->prepare($ticketSql);
-$ticketStmt->execute($params);
-$ticket = $ticketStmt->fetch();
-
-if (!$ticket) {
+$detailData = $ticketFacade->ticketDetail($ticketId, currentUserId(), isAdmin());
+if ($detailData === null) {
     setFlash('error', 'Chamado nao encontrado ou sem permissao para visualizar.');
     redirect('dashboard.php');
 }
 
-$filesStmt = $pdo->prepare(
-    'SELECT id, original_name, file_path, mime_type, file_size, uploaded_at
-     FROM ticket_files
-     WHERE ticket_id = :ticket_id
-     ORDER BY uploaded_at DESC'
-);
-$filesStmt->execute(['ticket_id' => $ticketId]);
-$files = $filesStmt->fetchAll();
-
-$historyStmt = $pdo->prepare(
-    'SELECT status, note, created_at
-     FROM ticket_status_history
-     WHERE ticket_id = :ticket_id
-     ORDER BY created_at DESC'
-);
-$historyStmt->execute(['ticket_id' => $ticketId]);
-$historyItems = $historyStmt->fetchAll();
+$ticket = $detailData['ticket'];
+$files = $detailData['files'];
+$historyItems = $detailData['history'];
+$assignment = $detailData['assignment'];
+$responses = $detailData['responses'];
 
 renderHeader('Detalhes do chamado');
 ?>
@@ -138,17 +95,26 @@ renderHeader('Detalhes do chamado');
         <p><?= nl2br(h((string) $ticket['descricao'])) ?></p>
 
         <ul class="meta-list">
+            <li><strong>Protocolo:</strong> <?= h((string) ($ticket['protocol_code'] ?? '-')) ?></li>
             <li><strong>Categoria:</strong> <?= h((string) $ticket['categoria']) ?></li>
             <li><strong>Localizacao:</strong> <?= h((string) $ticket['localizacao']) ?></li>
+            <li><strong>Setor responsavel:</strong> <?= $assignment ? h(departmentLabel((string) $assignment['department'])) : 'Nao encaminhado' ?></li>
             <li><strong>Solicitante:</strong> <?= h((string) $ticket['solicitante']) ?> (<?= h((string) $ticket['solicitante_email']) ?>)</li>
             <li><strong>Ultima atualizacao:</strong> <?= formatDateTime((string) $ticket['updated_at']) ?></li>
             <li><strong>Data de solucao:</strong> <?= formatDateTime((string) $ticket['resolved_at']) ?></li>
+            <?php if ($assignment !== null): ?>
+                <li><strong>Encaminhado em:</strong> <?= formatDateTime((string) $assignment['assigned_at']) ?> por <?= h((string) $assignment['assigned_by_name']) ?></li>
+                <?php if (trim((string) ($assignment['note'] ?? '')) !== ''): ?>
+                    <li><strong>Observacao do encaminhamento:</strong> <?= h((string) $assignment['note']) ?></li>
+                <?php endif; ?>
+            <?php endif; ?>
         </ul>
     </div>
 
     <?php if (isAdmin()): ?>
         <form class="form-grid status-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>" data-status-form>
             <h2>Atualizar status</h2>
+            <input type="hidden" name="action" value="update_status">
 
             <label for="status">Novo status</label>
             <select id="status" name="status" required>
@@ -164,7 +130,58 @@ renderHeader('Detalhes do chamado');
 
             <button class="btn btn-primary" type="submit">Salvar status</button>
         </form>
+
+        <form class="form-grid status-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>">
+            <h2>Encaminhar para setor</h2>
+            <input type="hidden" name="action" value="assign_department">
+
+            <label for="setor">Setor responsavel</label>
+            <select id="setor" name="setor" required>
+                <option value="">Selecione</option>
+                <?php foreach ($departments as $departmentCode => $departmentLabel): ?>
+                    <option value="<?= h((string) $departmentCode) ?>" <?= $assignment !== null && (string) $assignment['department'] === (string) $departmentCode ? 'selected' : '' ?>>
+                        <?= h((string) $departmentLabel) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <label for="nota_setor">Observacao do encaminhamento</label>
+            <textarea id="nota_setor" name="nota_setor" rows="3" placeholder="Opcional"></textarea>
+
+            <button class="btn btn-primary" type="submit">Encaminhar chamado</button>
+        </form>
+
+        <form class="form-grid status-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>">
+            <h2>Responder chamado</h2>
+            <input type="hidden" name="action" value="add_response">
+
+            <label for="resposta">Mensagem para o cidadao</label>
+            <textarea id="resposta" name="resposta" rows="4" minlength="5" required></textarea>
+
+            <button class="btn btn-primary" type="submit">Enviar resposta</button>
+        </form>
     <?php endif; ?>
+
+    <section class="panel">
+        <h2>Respostas do atendente</h2>
+        <?php if (count($responses) === 0): ?>
+            <p class="empty-state">Ainda nao existem respostas registradas.</p>
+        <?php endif; ?>
+
+        <?php if (count($responses) > 0): ?>
+            <ul class="response-list">
+                <?php foreach ($responses as $response): ?>
+                    <li class="response-card">
+                        <div class="card-top">
+                            <strong><?= h((string) $response['author_name']) ?></strong>
+                            <small><?= formatDateTime((string) $response['created_at']) ?></small>
+                        </div>
+                        <p><?= nl2br(h((string) $response['message'])) ?></p>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+    </section>
 
     <section class="panel">
         <h2>Anexos</h2>
