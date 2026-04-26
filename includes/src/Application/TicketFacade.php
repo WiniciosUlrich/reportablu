@@ -6,6 +6,8 @@ namespace ReportaBlu\Application;
 use ReportaBlu\Domain\DepartmentCatalog;
 use ReportaBlu\Domain\TicketStatus;
 
+// Facade: ponto unico para orquestrar casos de uso de chamados.
+// A UI depende desta interface simples, nao dos detalhes internos dos services.
 final class TicketFacade
 {
     public function __construct(
@@ -22,6 +24,7 @@ final class TicketFacade
      */
     public function createTicket(array $input, int $userId, ?array $uploadedFiles): array
     {
+        // Encaminha para o service especializado de criacao (SRP).
         return $this->ticketCreationService->create($input, $userId, $uploadedFiles);
     }
 
@@ -30,6 +33,7 @@ final class TicketFacade
      */
     public function homeData(array $filters): array
     {
+        // Consulta centralizada em service de leitura para manter coesao.
         return $this->ticketQueryService->homeData($filters);
     }
 
@@ -53,6 +57,7 @@ final class TicketFacade
 
     public function updateStatus(int $ticketId, string $newStatus, string $note, bool $isAdmin): void
     {
+        // Workflow isolado: regra de negocio fica fora da UI.
         $this->ticketWorkflowService->updateStatus($ticketId, $newStatus, $note, $isAdmin);
     }
 

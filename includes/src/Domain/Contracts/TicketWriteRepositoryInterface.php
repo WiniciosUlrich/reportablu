@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ReportaBlu\Domain\Contracts;
 
+// ISP: contrato de escrita isolado para evitar interfaces inchadas.
 interface TicketWriteRepositoryInterface
 {
     public function create(array $payload): int;

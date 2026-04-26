@@ -8,12 +8,16 @@ use ReportaBlu\Domain\Contracts\TicketReadRepositoryInterface;
 use ReportaBlu\Domain\Contracts\TicketWriteRepositoryInterface;
 use ReportaBlu\Domain\TicketStatus;
 
+// Repository concreto de tickets.
+// Encapsula SQL para a aplicacao depender de contratos, nao de queries.
 final class PdoTicketRepository extends BasePdoRepository implements TicketReadRepositoryInterface, TicketWriteRepositoryInterface
 {
     public function fetchPublicSolved(array $filters, int $limit = 12): array
     {
         $search = trim((string) ($filters['search'] ?? ''));
         $categoryId = (int) ($filters['category_id'] ?? 0);
+
+        // Compatibilidade: permite evoluir schema sem quebrar leitura legada.
         $hasProtocolTable = $this->tableExists('ticket_protocols');
         $protocolSelect = $hasProtocolTable ? 'tp.protocol_code' : 'NULL AS protocol_code';
         $protocolJoin = $hasProtocolTable ? 'LEFT JOIN ticket_protocols tp ON tp.ticket_id = t.id' : '';
@@ -78,6 +82,7 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
         $where = [];
         $params = [];
 
+        // Regra de acesso por perfil aplicada no repositorio de consulta.
         if (!$isAdmin) {
             $where[] = 't.user_id = :user_id';
             $params['user_id'] = (int) $userId;
@@ -159,6 +164,7 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
 
         $params = ['id' => $ticketId];
 
+        // Evita vazamento de chamado para usuario nao administrador.
         if (!$isAdmin) {
             $sql .= ' AND t.user_id = :user_id';
             $params['user_id'] = (int) $viewerUserId;
@@ -196,6 +202,7 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
 
     public function create(array $payload): int
     {
+        // Escrita isolada em um metodo pequeno (coesao e manutencao).
         $statement = $this->pdo->prepare(
             'INSERT INTO tickets (user_id, category_id, titulo, descricao, localizacao, status, created_at, updated_at)
              VALUES (:user_id, :category_id, :titulo, :descricao, :localizacao, :status, NOW(), NOW())'

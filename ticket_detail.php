@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireLogin();
 
+// Controller de detalhe: regras ficam na camada Application, aqui so ha orquestracao da tela.
 $ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 $ticketId = (int) ($_GET['id'] ?? 0);
 
@@ -18,6 +19,7 @@ $departments = $ticketFacade->departments();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAdmin()) {
     try {
+        // Salvar geral: um submit unico para manter UX simples e fluxo consistente.
         $currentDetail = $ticketFacade->ticketDetail($ticketId, currentUserId(), isAdmin());
         if ($currentDetail === null) {
             throw new \ReportaBlu\Application\Exceptions\NotFoundException('Chamado nao encontrado.');
@@ -35,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAdmin()) {
         $savedOperations = [];
 
         if ($newStatus !== '' && $newStatus !== (string) $currentTicket['status']) {
+            // Atualiza status apenas quando ha mudanca real.
             $ticketFacade->updateStatus(
                 $ticketId,
                 $newStatus,
@@ -55,6 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAdmin()) {
         );
 
         if ($shouldAssignDepartment) {
+            // Encaminhamento opcional no mesmo submit geral.
             $ticketFacade->assignDepartment(
                 $ticketId,
                 $newDepartment,
@@ -67,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAdmin()) {
         }
 
         if ($responseMessage !== '') {
+            // Resposta opcional no mesmo submit geral.
             $ticketFacade->addResponse(
                 $ticketId,
                 (int) currentUserId(),

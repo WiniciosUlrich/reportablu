@@ -17,10 +17,14 @@ use ReportaBlu\Infrastructure\Repository\PdoUserRepository;
 use ReportaBlu\Infrastructure\Storage\DefaultUploadValidationStrategy;
 use ReportaBlu\Infrastructure\Storage\LocalAttachmentStorage;
 
+// Factory: centraliza a criacao dos objetos da aplicacao em um unico ponto.
+// Isso reduz acoplamento nos controllers e facilita troca de implementacoes.
 final class AppFactory
 {
     public static function ticketFacade(PDO $pdo, string $projectRoot): TicketFacade
     {
+        // Repositories concretos ficam restritos a camada Infrastructure.
+        // Services recebem contratos/interfaces (DIP), nao detalhes de PDO.
         $categoryRepository = new PdoCategoryRepository($pdo);
         $ticketRepository = new PdoTicketRepository($pdo);
         $ticketHistoryRepository = new PdoTicketHistoryRepository($pdo);
@@ -30,6 +34,7 @@ final class AppFactory
         $ticketResponseRepository = new PdoTicketResponseRepository($pdo);
         $transactionManager = new PdoTransactionManager($pdo);
 
+        // Composicao + Strategy: validacao de upload pode ser trocada sem mexer no storage.
         $validationStrategy = new DefaultUploadValidationStrategy();
         $attachmentStorage = new LocalAttachmentStorage(
             $projectRoot . '/uploads',
@@ -39,6 +44,7 @@ final class AppFactory
 
         $attachmentService = new AttachmentService($attachmentStorage);
 
+        // Cada service tem responsabilidade unica (coesao alta / SRP).
         $creationService = new TicketCreationService(
             $categoryRepository,
             $ticketRepository,
@@ -50,6 +56,7 @@ final class AppFactory
             new TicketProtocolGenerator()
         );
 
+        // Service dedicado a leitura para separar comandos de consultas.
         $queryService = new TicketQueryService(
             $categoryRepository,
             $ticketRepository,
@@ -59,6 +66,7 @@ final class AppFactory
             $ticketResponseRepository
         );
 
+        // Service dedicado ao fluxo operacional do chamado.
         $workflowService = new TicketWorkflowService(
             $ticketRepository,
             $ticketHistoryRepository,
@@ -67,6 +75,7 @@ final class AppFactory
             $transactionManager
         );
 
+        // Facade simplifica o uso da camada de aplicacao para a camada de UI.
         return new TicketFacade(
             $creationService,
             $queryService,

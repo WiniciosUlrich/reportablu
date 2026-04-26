@@ -5,6 +5,8 @@ namespace ReportaBlu\Infrastructure\Storage;
 
 use ReportaBlu\Domain\Contracts\UploadValidationStrategyInterface;
 
+// Strategy padrao para validacao de anexos.
+// Novas politicas de validacao podem ser criadas sem alterar o storage (OCP).
 final class DefaultUploadValidationStrategy implements UploadValidationStrategyInterface
 {
     private const MAX_FILE_SIZE = 5242880;
@@ -16,6 +18,7 @@ final class DefaultUploadValidationStrategy implements UploadValidationStrategyI
 
     public function validate(array $fileData): ?string
     {
+        // Retorna mensagem de erro ao inves de excecao para manter interface simples e previsivel.
         $name = (string) ($fileData['name'] ?? 'arquivo');
         $error = (int) ($fileData['error'] ?? UPLOAD_ERR_NO_FILE);
         $size = (int) ($fileData['size'] ?? 0);

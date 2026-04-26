@@ -11,6 +11,7 @@ use ReportaBlu\Domain\Contracts\TicketReadRepositoryInterface;
 use ReportaBlu\Domain\Contracts\TicketResponseRepositoryInterface;
 use ReportaBlu\Domain\TicketStatus;
 
+// Service de leitura (queries): evita misturar comando e consulta na mesma classe.
 final class TicketQueryService
 {
     public function __construct(
@@ -25,6 +26,7 @@ final class TicketQueryService
 
     public function categories(): array
     {
+        // Consulta simples delegada ao repositorio para manter controller enxuto.
         return $this->categoryRepository->all();
     }
 
@@ -33,6 +35,7 @@ final class TicketQueryService
      */
     public function homeData(array $filters): array
     {
+        // Normaliza filtros em um formato consistente para a camada de dados.
         $normalizedFilters = [
             'search' => trim((string) ($filters['q'] ?? '')),
             'category_id' => (int) ($filters['categoria'] ?? 0),
@@ -73,6 +76,7 @@ final class TicketQueryService
 
     public function ticketDetail(int $ticketId, ?int $viewerUserId, bool $isAdmin): ?array
     {
+        // Compoe dados agregados em um unico payload para simplificar a camada de UI.
         $ticket = $this->ticketReadRepository->fetchById($ticketId, $viewerUserId, $isAdmin);
         if ($ticket === null) {
             return null;

@@ -16,6 +16,8 @@ use ReportaBlu\Domain\TicketStatus;
 use RuntimeException;
 use Throwable;
 
+// Caso de uso de criacao de chamado.
+// Responsabilidade unica: validar entrada, coordenar persistencia e anexos.
 final class TicketCreationService
 {
     public function __construct(
@@ -37,6 +39,7 @@ final class TicketCreationService
      */
     public function create(array $input, int $userId, ?array $uploadedFiles): array
     {
+        // Validacao de regra de negocio na camada Application, nao na UI.
         $title = trim((string) ($input['titulo'] ?? ''));
         $description = trim((string) ($input['descricao'] ?? ''));
         $location = trim((string) ($input['localizacao'] ?? ''));
@@ -64,9 +67,11 @@ final class TicketCreationService
             throw new ValidationException($errors);
         }
 
+        // Upload encapsulado em servico proprio para manter baixo acoplamento.
         $storedFiles = $this->attachmentService->storeManyFromRequest($uploadedFiles);
 
         try {
+            // Transacao garante consistencia: chamado, historico, protocolo e anexos.
             return $this->transactionManager->transactional(function () use ($userId, $categoryId, $title, $description, $location, $storedFiles): array {
                 $ticketId = $this->ticketWriteRepository->create([
                     'user_id' => $userId,
@@ -77,6 +82,7 @@ final class TicketCreationService
                     'status' => TicketStatus::OPEN,
                 ]);
 
+                // Historico inicial mantem integridade conceitual do fluxo de status.
                 $this->ticketHistoryRepository->add($ticketId, TicketStatus::OPEN, 'Chamado criado pelo morador.');
 
                 $protocolCode = $this->createProtocol($ticketId);
@@ -97,6 +103,7 @@ final class TicketCreationService
                 ];
             });
         } catch (Throwable $exception) {
+            // Compensacao: remove anexos fisicos caso transacao falhe.
             $this->attachmentService->cleanupStoredFiles($storedFiles);
 
             if ($exception instanceof ValidationException) {
@@ -113,6 +120,7 @@ final class TicketCreationService
 
     private function createProtocol(int $ticketId): string
     {
+        // Retry simples para colisao de protocolo sem expor SQL para a UI.
         for ($attempt = 0; $attempt < 5; $attempt++) {
             $protocolCode = $this->protocolGenerator->generate();
 

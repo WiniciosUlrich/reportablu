@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ReportaBlu\Domain\Contracts;
 
+// Fronteira de encapsulamento para armazenamento de anexos.
 interface AttachmentStorageInterface
 {
     /**

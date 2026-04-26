@@ -14,6 +14,7 @@ use ReportaBlu\Domain\Contracts\TransactionManagerInterface;
 use ReportaBlu\Domain\DepartmentCatalog;
 use ReportaBlu\Domain\TicketStatus;
 
+// Service de comando/workflow: concentra alteracoes de estado do chamado.
 final class TicketWorkflowService
 {
     public function __construct(
@@ -27,6 +28,7 @@ final class TicketWorkflowService
 
     public function updateStatus(int $ticketId, string $newStatus, string $note, bool $isAdmin): void
     {
+        // Regra de autorizacao fica na aplicacao para manter comportamento consistente.
         if (!$isAdmin) {
             throw new AuthorizationException('Apenas administradores podem alterar status.');
         }
@@ -53,6 +55,7 @@ final class TicketWorkflowService
         $note = trim($note);
         $historyNote = $note !== '' ? $note : 'Atualizacao de status pelo administrador.';
 
+        // Transacao evita historico sem atualizacao de status (ou vice-versa).
         $this->transactionManager->transactional(function () use ($ticketId, $newStatus, $resolvedAt, $historyNote): void {
             $this->ticketWriteRepository->updateStatus($ticketId, $newStatus, $resolvedAt);
             $this->ticketHistoryRepository->add($ticketId, $newStatus, $historyNote);
@@ -78,6 +81,7 @@ final class TicketWorkflowService
         $historyNote = $note !== '' ? $note : 'Chamado encaminhado para o setor ' . DepartmentCatalog::label($department) . '.';
         $status = (string) $currentMetadata['status'];
 
+        // Encaminhamento e registro historico sao atomicos.
         $this->transactionManager->transactional(function () use ($ticketId, $department, $note, $assignedByUserId, $status, $historyNote): void {
             $this->ticketAssignmentRepository->assign($ticketId, $department, $note, $assignedByUserId);
             $this->ticketHistoryRepository->add($ticketId, $status, $historyNote);
@@ -102,6 +106,7 @@ final class TicketWorkflowService
 
         $status = (string) $currentMetadata['status'];
 
+        // Resposta e historico juntos para manter trilha de auditoria coesa.
         $this->transactionManager->transactional(function () use ($ticketId, $authorUserId, $authorName, $message, $status): void {
             $this->ticketResponseRepository->add($ticketId, $authorUserId, $authorName, $message);
             $this->ticketHistoryRepository->add($ticketId, $status, 'Resposta enviada ao cidadao pelo atendente.');

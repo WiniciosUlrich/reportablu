@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireLogin();
 
+// Controller de consulta: compoe filtros e delega leitura para a Facade.
 $ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 
 $dashboardData = $ticketFacade->dashboardData($_GET, currentUserId(), isAdmin());

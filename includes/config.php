@@ -5,6 +5,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+// Autoload simples para manter organizacao em modulos sem framework externo.
+// A camada de UI importa apenas config/layout e as classes sao carregadas sob demanda.
 spl_autoload_register(static function (string $className): void {
     $prefix = 'ReportaBlu\\';
 
@@ -76,6 +78,7 @@ if ($timezone !== null) {
 
 function db(): PDO
 {
+    // Instancia unica de PDO por request para consistencia e menor overhead.
     static $pdo = null;
 
     if ($pdo instanceof PDO) {

@@ -5,6 +5,7 @@ require_once __DIR__ . '/includes/layout.php';
 
 requireLogin();
 
+// Controller fino (MVC web): recebe request, delega regra para Application e renderiza view.
 $ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 
 $errors = [];
@@ -22,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $categoryId = (int) ($_POST['categoria'] ?? 0);
 
     try {
+        // Abertura de chamado fica centralizada no caso de uso (TicketCreationService).
         $result = $ticketFacade->createTicket($_POST, (int) currentUserId(), $_FILES['arquivos'] ?? null);
 
         setFlash(

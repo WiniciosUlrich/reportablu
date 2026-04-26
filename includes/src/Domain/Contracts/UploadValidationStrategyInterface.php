@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ReportaBlu\Domain\Contracts;
 
+// Strategy contract: permite trocar politica de validacao sem alterar o storage.
 interface UploadValidationStrategyInterface
 {
     /**

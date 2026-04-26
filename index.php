@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/includes/layout.php';
 
+// Controller da pagina inicial: apenas orquestra dados de leitura e renderizacao.
 $ticketFacade = \ReportaBlu\Application\AppFactory::ticketFacade(db(), __DIR__);
 
 $search = trim((string) ($_GET['q'] ?? ''));
