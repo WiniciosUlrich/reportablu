@@ -18,7 +18,6 @@ renderHeader('Portal da cidade');
 
 <section class="hero">
     <div class="hero-copy">
-        <p class="kicker">Conecte moradores e servicos urbanos</p>
         <h1>ReportaBlu: o portal para registrar e acompanhar chamados da cidade</h1>
         <p>
             Abra chamados com localizacao e anexos, acompanhe o andamento em tempo real e consulte historicos.
