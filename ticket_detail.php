@@ -122,7 +122,6 @@ renderHeader('Detalhes do chamado');
 <section class="panel">
     <div class="section-head">
         <h1>Chamado #<?= (int) $ticket['id'] ?> - <?= h((string) $ticket['titulo']) ?></h1>
-        <p>Visualize descricao, status, anexos e historico de atualizacoes.</p>
     </div>
 
     <div class="ticket-card detail-card">
@@ -155,8 +154,6 @@ renderHeader('Detalhes do chamado');
     <?php if (isAdmin()): ?>
         <form class="form-grid status-form admin-edit-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>" data-status-form>
             <h2>Editar chamado</h2>
-            <p class="muted">Atualize status, setor e resposta com um unico envio.</p>
-
             <label for="status">Novo status</label>
             <select id="status" name="status" required>
                 <?php foreach ($validStatuses as $statusOption): ?>
