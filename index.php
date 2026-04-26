@@ -18,9 +18,9 @@ renderHeader('Portal da cidade');
 
 <section class="hero">
     <div class="hero-copy">
-        <h1>ReportaBlu: o portal para registrar e acompanhar chamados da cidade</h1>
+        <h1>ReportaBlu: o portal para registrar e acompanhar chamados de Blumenau</h1>
         <p>
-            Abra chamados com localizacao e anexos, acompanhe o andamento em tempo real e consulte historicos.
+            Abra chamados com localização e anexos, acompanhe o andamento em tempo real e consulte historicos.
         </p>
 
         <div class="hero-cta">
