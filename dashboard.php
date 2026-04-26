@@ -82,7 +82,6 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>Protocolo</th>
                     <th>Titulo</th>
                     <th>Categoria</th>
                     <th>Localizacao</th>
@@ -98,14 +97,13 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
             <tbody>
                 <?php if (count($tickets) === 0): ?>
                     <tr>
-                        <td colspan="<?= isAdmin() ? '10' : '9' ?>" class="empty-state">Nenhum chamado encontrado.</td>
+                        <td colspan="<?= isAdmin() ? '9' : '8' ?>" class="empty-state">Nenhum chamado encontrado.</td>
                     </tr>
                 <?php endif; ?>
 
                 <?php foreach ($tickets as $ticket): ?>
                     <tr>
                         <td><?= (int) $ticket['id'] ?></td>
-                        <td><?= h((string) ($ticket['protocol_code'] ?? '-')) ?></td>
                         <td><?= h((string) $ticket['titulo']) ?></td>
                         <td><?= h((string) $ticket['categoria']) ?></td>
                         <td><?= h((string) $ticket['localizacao']) ?></td>
