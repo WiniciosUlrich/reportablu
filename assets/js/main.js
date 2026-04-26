@@ -43,7 +43,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var statusForm = document.querySelector('[data-status-form]');
     if (statusForm) {
         statusForm.addEventListener('submit', function (event) {
-            var confirmed = window.confirm('Confirmar alteracao do status deste chamado?');
+            var confirmed = window.confirm('Confirmar salvamento geral deste chamado?');
             if (!confirmed) {
                 event.preventDefault();
             }

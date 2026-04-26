@@ -17,40 +17,81 @@ $validStatuses = $ticketFacade->validStatuses();
 $departments = $ticketFacade->departments();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isAdmin()) {
-    $action = trim((string) ($_POST['action'] ?? 'update_status'));
-
     try {
-        if ($action === 'update_status') {
+        $currentDetail = $ticketFacade->ticketDetail($ticketId, currentUserId(), isAdmin());
+        if ($currentDetail === null) {
+            throw new \ReportaBlu\Application\Exceptions\NotFoundException('Chamado nao encontrado.');
+        }
+
+        $currentTicket = $currentDetail['ticket'];
+        $currentAssignment = $currentDetail['assignment'];
+
+        $newStatus = trim((string) ($_POST['status'] ?? ''));
+        $statusNote = (string) ($_POST['nota'] ?? '');
+        $newDepartment = trim((string) ($_POST['setor'] ?? ''));
+        $departmentNote = (string) ($_POST['nota_setor'] ?? '');
+        $responseMessage = trim((string) ($_POST['resposta'] ?? ''));
+
+        $savedOperations = [];
+
+        if ($newStatus !== '' && $newStatus !== (string) $currentTicket['status']) {
             $ticketFacade->updateStatus(
                 $ticketId,
-                (string) ($_POST['status'] ?? ''),
-                (string) ($_POST['nota'] ?? ''),
+                $newStatus,
+                $statusNote,
                 isAdmin()
             );
 
-            setFlash('success', 'Status do chamado atualizado.');
-        } elseif ($action === 'assign_department') {
+            $savedOperations[] = 'status';
+        }
+
+        $currentDepartment = $currentAssignment !== null
+            ? (string) ($currentAssignment['department'] ?? '')
+            : '';
+
+        $shouldAssignDepartment = $newDepartment !== '' && (
+            $newDepartment !== $currentDepartment
+            || trim($departmentNote) !== ''
+        );
+
+        if ($shouldAssignDepartment) {
             $ticketFacade->assignDepartment(
                 $ticketId,
-                (string) ($_POST['setor'] ?? ''),
-                (string) ($_POST['nota_setor'] ?? ''),
+                $newDepartment,
+                $departmentNote,
                 (int) currentUserId(),
                 isAdmin()
             );
 
-            setFlash('success', 'Chamado encaminhado para o setor responsavel.');
-        } elseif ($action === 'add_response') {
+            $savedOperations[] = 'setor';
+        }
+
+        if ($responseMessage !== '') {
             $ticketFacade->addResponse(
                 $ticketId,
                 (int) currentUserId(),
                 currentUserName(),
-                (string) ($_POST['resposta'] ?? ''),
+                $responseMessage,
                 isAdmin()
             );
 
-            setFlash('success', 'Resposta adicionada ao chamado.');
+            $savedOperations[] = 'resposta';
+        }
+
+        if ($savedOperations === []) {
+            setFlash('info', 'Nenhuma alteracao para salvar.');
+        } elseif (count($savedOperations) === 1) {
+            $onlyOperation = $savedOperations[0];
+
+            if ($onlyOperation === 'status') {
+                setFlash('success', 'Status do chamado atualizado.');
+            } elseif ($onlyOperation === 'setor') {
+                setFlash('success', 'Chamado encaminhado para o setor responsavel.');
+            } else {
+                setFlash('success', 'Resposta adicionada ao chamado.');
+            }
         } else {
-            throw new \ReportaBlu\Application\Exceptions\ValidationException(['Acao invalida.']);
+            setFlash('success', 'Alteracoes salvas com sucesso.');
         }
     } catch (\ReportaBlu\Application\Exceptions\ValidationException $exception) {
         setFlash('error', $exception->errors()[0] ?? 'Dados invalidos.');
@@ -112,9 +153,9 @@ renderHeader('Detalhes do chamado');
     </div>
 
     <?php if (isAdmin()): ?>
-        <form class="form-grid status-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>" data-status-form>
-            <h2>Atualizar status</h2>
-            <input type="hidden" name="action" value="update_status">
+        <form class="form-grid status-form admin-edit-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>" data-status-form>
+            <h2>Editar chamado</h2>
+            <p class="muted">Atualize status, setor e resposta com um unico envio.</p>
 
             <label for="status">Novo status</label>
             <select id="status" name="status" required>
@@ -125,19 +166,12 @@ renderHeader('Detalhes do chamado');
                 <?php endforeach; ?>
             </select>
 
-            <label for="nota">Observacao da atualizacao</label>
+            <label for="nota">Observacao da atualizacao de status</label>
             <textarea id="nota" name="nota" rows="3" placeholder="Opcional"></textarea>
 
-            <button class="btn btn-primary" type="submit">Salvar status</button>
-        </form>
-
-        <form class="form-grid status-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>">
-            <h2>Encaminhar para setor</h2>
-            <input type="hidden" name="action" value="assign_department">
-
             <label for="setor">Setor responsavel</label>
-            <select id="setor" name="setor" required>
-                <option value="">Selecione</option>
+            <select id="setor" name="setor">
+                <option value="" <?= $assignment === null ? 'selected' : '' ?>>Nao alterar setor</option>
                 <?php foreach ($departments as $departmentCode => $departmentLabel): ?>
                     <option value="<?= h((string) $departmentCode) ?>" <?= $assignment !== null && (string) $assignment['department'] === (string) $departmentCode ? 'selected' : '' ?>>
                         <?= h((string) $departmentLabel) ?>
@@ -148,17 +182,10 @@ renderHeader('Detalhes do chamado');
             <label for="nota_setor">Observacao do encaminhamento</label>
             <textarea id="nota_setor" name="nota_setor" rows="3" placeholder="Opcional"></textarea>
 
-            <button class="btn btn-primary" type="submit">Encaminhar chamado</button>
-        </form>
-
-        <form class="form-grid status-form" method="post" action="ticket_detail.php?id=<?= (int) $ticket['id'] ?>">
-            <h2>Responder chamado</h2>
-            <input type="hidden" name="action" value="add_response">
-
             <label for="resposta">Mensagem para o cidadao</label>
-            <textarea id="resposta" name="resposta" rows="4" minlength="5" required></textarea>
+            <textarea id="resposta" name="resposta" rows="4" minlength="5" placeholder="Opcional"></textarea>
 
-            <button class="btn btn-primary" type="submit">Enviar resposta</button>
+            <button class="btn btn-primary" type="submit">Salvar geral</button>
         </form>
     <?php endif; ?>
 
