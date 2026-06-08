@@ -63,14 +63,23 @@ final class TicketQueryService
             'search' => trim((string) ($filters['q'] ?? '')),
             'status' => $status,
             'category_id' => (int) ($filters['categoria'] ?? 0),
+            'district' => trim((string) ($filters['bairro'] ?? '')),
         ];
+
+        $tickets = $this->ticketReadRepository->fetchDashboardTickets($normalizedFilters, $userId, $isAdmin);
 
         return [
             'categories' => $this->categoryRepository->all(),
             'stats' => $this->ticketReadRepository->fetchStats($userId, $isAdmin),
-            'tickets' => $this->ticketReadRepository->fetchDashboardTickets($normalizedFilters, $userId, $isAdmin),
+            'tickets' => $tickets,
             'valid_statuses' => TicketStatus::all(),
             'active_filters' => $normalizedFilters,
+            'charts' => [
+                'status' => $this->statusChart($tickets),
+                'category' => $this->groupChart($tickets, 'categoria', 'Sem categoria'),
+                'responsible' => $this->groupChart($tickets, 'responsavel', 'Nao atribuido'),
+            ],
+            'recent_updates' => $this->ticketReadRepository->fetchRecentUpdates($userId, $isAdmin, 8),
         ];
     }
 
@@ -89,5 +98,58 @@ final class TicketQueryService
             'assignment' => $this->ticketAssignmentRepository->latestByTicket($ticketId),
             'responses' => $this->ticketResponseRepository->listByTicket($ticketId),
         ];
+    }
+
+    private function statusChart(array $tickets): array
+    {
+        $labels = TicketStatus::all();
+        $totals = array_fill_keys($labels, 0);
+
+        foreach ($tickets as $ticket) {
+            $status = (string) ($ticket['status'] ?? '');
+            if (isset($totals[$status])) {
+                $totals[$status]++;
+            }
+        }
+
+        $rows = [];
+        foreach ($totals as $status => $total) {
+            $rows[] = [
+                'label' => TicketStatus::label($status),
+                'value' => $total,
+            ];
+        }
+
+        return $rows;
+    }
+
+    private function groupChart(array $tickets, string $field, string $fallbackLabel): array
+    {
+        $totals = [];
+
+        foreach ($tickets as $ticket) {
+            $key = trim((string) ($ticket[$field] ?? ''));
+            if ($key === '') {
+                $key = $fallbackLabel;
+            }
+
+            if (!isset($totals[$key])) {
+                $totals[$key] = 0;
+            }
+
+            $totals[$key]++;
+        }
+
+        arsort($totals);
+
+        $rows = [];
+        foreach ($totals as $label => $value) {
+            $rows[] = [
+                'label' => $label,
+                'value' => $value,
+            ];
+        }
+
+        return $rows;
     }
 }

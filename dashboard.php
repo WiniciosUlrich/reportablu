@@ -14,10 +14,24 @@ $stats = $dashboardData['stats'] ?? [];
 $tickets = $dashboardData['tickets'] ?? [];
 $validStatuses = $dashboardData['valid_statuses'] ?? [];
 $activeFilters = $dashboardData['active_filters'] ?? [];
+$charts = $dashboardData['charts'] ?? [];
+$recentUpdates = $dashboardData['recent_updates'] ?? [];
 
 $search = (string) ($activeFilters['search'] ?? '');
 $statusFilter = (string) ($activeFilters['status'] ?? '');
 $categoryFilter = (int) ($activeFilters['category_id'] ?? 0);
+$districtFilter = (string) ($activeFilters['district'] ?? '');
+
+$statusChart = $charts['status'] ?? [];
+$categoryChart = $charts['category'] ?? [];
+$responsibleChart = $charts['responsible'] ?? [];
+$chartMax = max(
+    1,
+    ...array_map(
+        static fn (array $chartItem): int => (int) ($chartItem['value'] ?? 0),
+        array_merge($statusChart, $categoryChart, $responsibleChart)
+    )
+);
 
 renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
 ?>
@@ -57,6 +71,13 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
             value="<?= h($search) ?>"
         >
 
+        <input
+            type="text"
+            name="bairro"
+            placeholder="Filtrar por bairro"
+            value="<?= h($districtFilter) ?>"
+        >
+
         <select name="status">
             <option value="">Todos os status</option>
             <?php foreach ($validStatuses as $statusOption): ?>
@@ -78,6 +99,48 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
         <button class="btn btn-primary" type="submit">Aplicar filtros</button>
     </form>
 
+    <div class="chart-grid">
+        <article class="chart-card">
+            <h3>Status</h3>
+            <div id="chart-status" class="chart-canvas"></div>
+        </article>
+
+        <article class="chart-card">
+            <h3>Categoria</h3>
+            <div id="chart-category" class="chart-canvas"></div>
+        </article>
+
+        <article class="chart-card">
+            <h3>Responsavel</h3>
+            <div id="chart-responsible" class="chart-canvas"></div>
+        </article>
+    </div>
+
+    <?php if (!isAdmin()): ?>
+        <section class="panel update-panel">
+            <h2>Atualizacoes recentes dos meus chamados</h2>
+            <?php if (count($recentUpdates) === 0): ?>
+                <p class="empty-state">Sem atualizacoes recentes.</p>
+            <?php endif; ?>
+            <?php if (count($recentUpdates) > 0): ?>
+                <ul class="update-list">
+                    <?php foreach ($recentUpdates as $update): ?>
+                        <li>
+                            <div class="card-top">
+                                <strong>Chamado #<?= (int) ($update['ticket_id'] ?? 0) ?> - <?= h((string) ($update['titulo'] ?? '')) ?></strong>
+                                <small><?= formatDateTime((string) ($update['created_at'] ?? '')) ?></small>
+                            </div>
+                            <span class="status-badge <?= h(statusClass((string) ($update['status'] ?? 'aberto'))) ?>">
+                                <?= h(statusLabel((string) ($update['status'] ?? 'aberto'))) ?>
+                            </span>
+                            <p><?= h((string) ($update['message'] ?? 'Atualizacao registrada.')) ?></p>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
     <div class="table-wrapper">
         <table class="ticket-table">
             <thead>
@@ -86,6 +149,7 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
                     <th>Titulo</th>
                     <th>Categoria</th>
                     <th>Localizacao</th>
+                    <th>Responsavel</th>
                     <?php if (isAdmin()): ?>
                         <th>Solicitante</th>
                     <?php endif; ?>
@@ -98,7 +162,7 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
             <tbody>
                 <?php if (count($tickets) === 0): ?>
                     <tr>
-                        <td colspan="<?= isAdmin() ? '9' : '8' ?>" class="empty-state">Nenhum chamado encontrado.</td>
+                        <td colspan="<?= isAdmin() ? '10' : '9' ?>" class="empty-state">Nenhum chamado encontrado.</td>
                     </tr>
                 <?php endif; ?>
 
@@ -108,6 +172,10 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
                         <td><?= h((string) $ticket['titulo']) ?></td>
                         <td><?= h((string) $ticket['categoria']) ?></td>
                         <td><?= h((string) $ticket['localizacao']) ?></td>
+                        <td>
+                            <?php $responsavel = trim((string) ($ticket['responsavel'] ?? '')); ?>
+                            <?= h($responsavel === '' ? 'Nao atribuido' : departmentLabel($responsavel)) ?>
+                        </td>
                         <?php if (isAdmin()): ?>
                             <td><?= h((string) $ticket['solicitante']) ?></td>
                         <?php endif; ?>
@@ -127,3 +195,56 @@ renderHeader(isAdmin() ? 'Painel geral' : 'Meus chamados');
 </section>
 
 <?php renderFooter(); ?>
+
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script>
+    // Dados vindos do servidor (array de {label, value})
+    const STATUS_CHART = <?php echo json_encode($statusChart, JSON_UNESCAPED_UNICODE); ?> || [];
+    const CATEGORY_CHART = <?php echo json_encode($categoryChart, JSON_UNESCAPED_UNICODE); ?> || [];
+    const RESPONSIBLE_CHART = <?php echo json_encode($responsibleChart, JSON_UNESCAPED_UNICODE); ?> || [];
+
+    function toDataTable(rows, labelKey = 'label') {
+        const data = new google.visualization.DataTable();
+        data.addColumn('string', 'Label');
+        data.addColumn('number', 'Valor');
+        const formatted = rows.map(r => [String(r[labelKey] ?? '-'), Number(r.value ?? 0)]);
+        data.addRows(formatted);
+        return data;
+    }
+
+    function drawCharts() {
+        // Status: pie chart
+        const statusData = toDataTable(STATUS_CHART);
+        const statusOptions = {height: 200, legend: {position: 'right'}, pieHole: 0.32, chartArea: {width: '70%'}};
+        const statusChart = new google.visualization.PieChart(document.getElementById('chart-status'));
+        statusChart.draw(statusData, statusOptions);
+
+        // Category: bar chart
+        const categoryData = toDataTable(CATEGORY_CHART);
+        const categoryOptions = {height: 200, legend: {position: 'none'}, chartArea: {width: '70%'}};
+        const categoryChart = new google.visualization.BarChart(document.getElementById('chart-category'));
+        categoryChart.draw(categoryData, categoryOptions);
+
+        // Responsible: bar chart
+        const responsibleData = toDataTable(RESPONSIBLE_CHART);
+        const responsibleOptions = {height: 200, legend: {position: 'none'}, chartArea: {width: '70%'}};
+        const responsibleChart = new google.visualization.BarChart(document.getElementById('chart-responsible'));
+        responsibleChart.draw(responsibleData, responsibleOptions);
+    }
+
+    google.charts.load('current', {'packages':['corechart']});
+    google.charts.setOnLoadCallback(function() {
+        drawCharts();
+    });
+
+    // Redesenha os charts ao redimensionar (debounced)
+    let resizeTimer = null;
+    window.addEventListener('resize', function() {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(function() {
+            if (typeof google !== 'undefined' && google.visualization) {
+                drawCharts();
+            }
+        }, 200);
+    });
+</script>

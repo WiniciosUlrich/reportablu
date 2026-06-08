@@ -75,9 +75,23 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
         $search = trim((string) ($filters['search'] ?? ''));
         $status = trim((string) ($filters['status'] ?? ''));
         $categoryId = (int) ($filters['category_id'] ?? 0);
+        $district = trim((string) ($filters['district'] ?? ''));
         $hasProtocolTable = $this->tableExists('ticket_protocols');
+        $hasAssignmentTable = $this->tableExists('ticket_assignments');
         $protocolSelect = $hasProtocolTable ? 'tp.protocol_code' : 'NULL AS protocol_code';
         $protocolJoin = $hasProtocolTable ? 'LEFT JOIN ticket_protocols tp ON tp.ticket_id = t.id' : '';
+        $assignmentSelect = $hasAssignmentTable ? 'latest_assignment.department AS responsavel' : 'NULL AS responsavel';
+        $assignmentJoin = $hasAssignmentTable
+            ? "LEFT JOIN (
+                    SELECT ta.ticket_id, ta.department
+                    FROM ticket_assignments ta
+                    INNER JOIN (
+                        SELECT ticket_id, MAX(id) AS latest_id
+                        FROM ticket_assignments
+                        GROUP BY ticket_id
+                    ) latest ON latest.latest_id = ta.id
+                ) latest_assignment ON latest_assignment.ticket_id = t.id"
+            : '';
 
         $where = [];
         $params = [];
@@ -106,6 +120,11 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
             $params['category_id'] = $categoryId;
         }
 
+        if ($district !== '') {
+            $where[] = 't.localizacao LIKE :district';
+            $params['district'] = '%' . $district . '%';
+        }
+
         $whereSql = $where === [] ? '1 = 1' : implode(' AND ', $where);
 
         $sql = "SELECT
@@ -117,10 +136,12 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
                     t.updated_at,
                     c.nome AS categoria,
                     u.nome AS solicitante,
+                    {$assignmentSelect},
                     {$protocolSelect}
                 FROM tickets t
                 INNER JOIN categories c ON c.id = t.category_id
                 INNER JOIN users u ON u.id = t.user_id
+                {$assignmentJoin}
                 {$protocolJoin}
                 WHERE {$whereSql}
                 ORDER BY t.created_at DESC";
@@ -198,6 +219,43 @@ final class PdoTicketRepository extends BasePdoRepository implements TicketReadR
         $statement->execute($params);
 
         return $statement->fetch() ?: [];
+    }
+
+    public function fetchRecentUpdates(?int $userId, bool $isAdmin, int $limit = 10): array
+    {
+        $sql = "SELECT
+                    t.id AS ticket_id,
+                    t.titulo,
+                    h.status,
+                    h.note AS message,
+                    h.created_at,
+                    'status' AS update_type
+                FROM ticket_status_history h
+                INNER JOIN tickets t ON t.id = h.ticket_id";
+
+        $params = [];
+
+        if (!$isAdmin) {
+            $sql .= ' WHERE t.user_id = :user_id';
+            $params['user_id'] = (int) $userId;
+        }
+
+        $sql .= ' ORDER BY h.created_at DESC LIMIT :limit';
+
+        $statement = $this->pdo->prepare($sql);
+
+        foreach ($params as $key => $value) {
+            $statement->bindValue(
+                ':' . $key,
+                $value,
+                is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR
+            );
+        }
+
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+
+        return $statement->fetchAll() ?: [];
     }
 
     public function create(array $payload): int

@@ -1,0 +1,43 @@
+# .htaccess de proteção para ReportaBlu
+# - Evita listagem de diretórios
+# - Nega acesso a arquivos escondidos (incluindo .env)
+# - Bloqueia acesso direto a pastas sensíveis (includes, vendor)
+
+Options -Indexes
+
+# Bloqueia arquivos que começam com ponto (ex: .env, .git)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+
+# Compatibilidade com Apache 2.2
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^\.">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>
+
+# Regras de reescrita para negar caminhos públicos a pastas internas
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Negar acesso direto a includes (codigo fonte), vendor e outros
+    RewriteRule ^includes/ - [F,L]
+    RewriteRule ^vendor/ - [F,L]
+
+    # Negar acesso direto ao .env
+    RewriteRule ^\.env$ - [F,L]
+</IfModule>
+
+# Protege arquivos específicos que podem expor dados
+<Files ".env">
+    Require all denied
+</Files>
+
+<IfModule !mod_authz_core.c>
+    <Files ".env">
+        Order allow,deny
+        Deny from all
+    </Files>
+</IfModule>

@@ -14,4 +14,6 @@ interface TicketReadRepositoryInterface
     public function fetchById(int $ticketId, ?int $viewerUserId, bool $isAdmin): ?array;
 
     public function fetchStats(?int $userId, bool $isAdmin): array;
+
+    public function fetchRecentUpdates(?int $userId, bool $isAdmin, int $limit = 10): array;
 }
